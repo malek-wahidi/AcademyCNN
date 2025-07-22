@@ -56,14 +56,16 @@ def get_loaders():
     return dataloader_train, dataloader_test
 
 
-def train(model, trainloader, criterion, optimizer, device):
+def train(model, dataloader_train, criterion, optimizer, device):
     model.train() # Set the model to training mode
     epochs = config['hyperparameters']['epochs']
+    
     for epoch in range(epochs):
         running_loss = 0.0
+
         # Use tqdm for progress bar and live loss tracking
         with tqdm(
-            trainloader,
+            dataloader_train,
             desc=f"Epoch {epoch+1}/{epochs}",
             leave=True,
             unit="batch"
@@ -71,18 +73,23 @@ def train(model, trainloader, criterion, optimizer, device):
             for i, (inputs, labels) in enumerate(progress_bar):
                 # Move data to the selected device (CPU or GPU)
                 inputs, labels = inputs.to(device), labels.to(device)
+
                 optimizer.zero_grad()  # Clear gradients from previous step
+
                 outputs = model(inputs)  # Forward pass: compute predictions
+
                 loss = criterion(outputs, labels)  # Compute loss
                 loss.backward()  # Backward pass: compute gradients
-                optimizer.step()  # Update model parameters
+                optimizer.step()  # Update model parameter
                 running_loss += loss.item()  # Add current loss to total
 
                 # Update progress bar with average loss so far
                 avg_loss = running_loss / (i + 1)
                 progress_bar.set_postfix({'loss': avg_loss})
+
         # Print average loss for this epoch
-        print(f"Epoch {epoch+1} finished. Avg loss: {running_loss / len(trainloader):.3f}")
+        print(f"Epoch {epoch+1} finished. Avg loss: {running_loss / len(dataloader_train):.3f}")
+
     print('Finished Training')
 
 
