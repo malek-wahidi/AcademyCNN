@@ -21,6 +21,7 @@ Train and evaluate a simple CNN on CIFAR-10 using PyTorch.
    ```
 
 2. **Edit `config.yaml`** for hyperparameters and paths if needed.
+   - `val_split` controls the fraction of training data used for validation (default: 0.1).
 
 3. **Run training:**
     Run inside uv venv:
@@ -30,3 +31,9 @@ Train and evaluate a simple CNN on CIFAR-10 using PyTorch.
     - Uses GPU if available
     - CIFAR-10 is auto-downloaded to `data/cifar10/`
     - Model weights saved to `weights/checkpoint.pth` by default.
+    - After each epoch, validation loss and accuracy are reported.
+
+## Validation
+- A portion of the training set is used for validation (see `val_split` in config).
+- After each epoch, validation loss and accuracy are printed.
+- Final test loss and accuracy are printed after training.
