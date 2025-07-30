@@ -6,12 +6,12 @@ from einops import rearrange
 class SimpleNet(nn.Module):
     def __init__(self):
         super(SimpleNet, self).__init__()
-        self.conv1 = nn.Conv2d(3, 32, 5, 1, 2)
+        self.conv1 = nn.Conv2d(3, 64, 3)
         self.pool = nn.MaxPool2d(2, 2)
-        self.conv2 = nn.Conv2d(32, 64, 5, 1, 2)
-        self.conv3 = nn.Conv2d(64, 128, 5, 1, 2)
+        self.conv2 = nn.Conv2d(64, 128, 3)
+        self.conv3 = nn.Conv2d(128, 256, 3)
 
-        self.fc1 = nn.Linear(128 * 4 * 4, 256)
+        self.fc1 = nn.Linear(256 * 2 * 2, 256)
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, 10)
 
