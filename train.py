@@ -9,7 +9,7 @@ from torchvision import datasets, transforms
 
 import os
 
-from model import SimpleNet
+from model import ImprovedNet
 
 # Load config (YAML for easy editing)
 with open('config.yaml', 'r') as f:
@@ -139,7 +139,7 @@ def main():
     dataloader_train, dataloader_val, dataloader_test = get_loaders()
 
     # Create the neural network and move it to the selected device
-    model = SimpleNet().to(device)
+    model = ImprovedNet().to(device)
 
     # Define the loss function (cross-entropy for classification)
     criterion = nn.CrossEntropyLoss()
