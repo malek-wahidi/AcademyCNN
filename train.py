@@ -17,8 +17,11 @@ with open('config.yaml', 'r') as f:
 
 # Standard input normalization for CIFAR-10
 transform = transforms.Compose([
-    transforms.ToTensor(), # Convert PIL image to PyTorch Tensor and normalize to [0, 1]
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # Mean and Standard Deviation of the CIFAR-10 dataset
+    transforms.RandomHorizontalFlip(),             # new: flip images randomly
+    transforms.RandomCrop(32, padding=4),          # new: crop with padding
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5),
+                         (0.5, 0.5, 0.5))
 ])
 
 def get_loaders():
