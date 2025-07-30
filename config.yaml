@@ -1,13 +1,17 @@
 hyperparameters:
-  epochs: 10
-  batch_size: 8
+  epochs: 100 #train the model for 50 times
+  batch_size: 64 #uses 64 images/batch
+  lr: 0.001 #learning rate
+  weight_decay: 0.0001 #help prevent overfitting by slightly penalizing large weights.
 
-  lr: 0.001
-  momentum: 0.9 
+  momentum: 0.9
 
-  num_workers: 8
+  num_workers: 4 #Number of CPU threads used to load the data in parallel. Helps speed up training.
+
+  val_split: 0.1 #10% of the dataset will be used for the validation test
+  early_stopping_patience: 7 #if after 7 epoch there is no improvement it stops automatically to prevent overfitting
 
 paths:
   train_dir: 'data/cifar10/train'
   test_dir: 'data/cifar10/test'
-  model_path: 'weights/checkpoint.pth'
+  model_path: 'weights/best_model.pth'
