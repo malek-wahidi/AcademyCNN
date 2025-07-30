@@ -17,6 +17,8 @@ with open('config.yaml', 'r') as f:
 
 # Standard input normalization for CIFAR-10
 transform = transforms.Compose([
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomCrop(32, padding=4),
     transforms.ToTensor(), # Convert PIL image to PyTorch Tensor and normalize to [0, 1]
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # Mean and Standard Deviation of the CIFAR-10 dataset
 ])
@@ -141,14 +143,18 @@ def main():
     # Create the neural network and move it to the selected device
     model = SimpleNet().to(device)
 
-    # Define the loss function (cross-entropy for classification)
+    # Define the loss function (cross-entropy for classification)   
     criterion = nn.CrossEntropyLoss()
 
     # Define the optimizer (SGD with learning rate and momentum from config)
-    optimizer = optim.SGD(
+    # changed the optimizer to Adam
+    optimizer = optim.Adam(
         model.parameters(),
         lr=config['hyperparameters']['lr'],
-        momentum=config['hyperparameters']['momentum']
+        betas=config['hyperparameters']['betas'],
+        weight_decay=config['hyperparameters']['weight_decay']
+        #,
+        #momentum=config['hyperparameters']['momentum']
     )
 
     train(model, dataloader_train, dataloader_val, criterion, optimizer, device)
