@@ -1,57 +1,75 @@
+
 import yaml
 from tqdm import tqdm
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader, random_split
-from torchvision import datasets, transforms
+import torch.nn as nn #build neural networks
+import torch.optim as optim #optimizers
+from torch.utils.data import DataLoader, random_split #into training and validation
+from torchvision import datasets, transforms #modify image
 
-import os
+import os #saving models
 
 from model import SimpleNet
 
 # Load config (YAML for easy editing)
 with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)
-
-# Standard input normalization for CIFAR-10
+# data augg only on training
 transform = transforms.Compose([
-    transforms.ToTensor(), # Convert PIL image to PyTorch Tensor and normalize to [0, 1]
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # Mean and Standard Deviation of the CIFAR-10 dataset
+    transforms.RandomHorizontalFlip(),         # quick, useful for CIFAR , adding randominess for the image
+    transforms.ToTensor(), #[0, 1] range
+    transforms.Normalize(
+        mean=(0.4914, 0.4822, 0.4465), #precomputed statistics of the CIFAR-10 dataset, average color intensity and standard deviation rgb
+        std=(0.2470, 0.2435, 0.2616)
+    )
 ])
 
-def get_loaders():
+
+
+transform_val_test = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(
+        mean=(0.4914, 0.4822, 0.4465),
+        std=(0.2470, 0.2435, 0.2616)
+    )
+])
+
+
+def get_loaders():#prepare the training and test datasets
     # Ensure train and test data directories exist
     os.makedirs(config['paths']['train_dir'], exist_ok=True)
     os.makedirs(config['paths']['test_dir'], exist_ok=True)
 
     # Load the full training set
     dataset_train_full = datasets.CIFAR10(
-        root=config['paths']['train_dir'],
-        train=True,
-        download=True,
-        transform=transform
+    root=config['paths']['train_dir'],
+    train=True,
+    download=True,
+    transform=transform  # augmentation + normalize for training
     )
     dataset_test = datasets.CIFAR10(
-        root=config['paths']['test_dir'],
-        train=False,
-        download=True,
-        transform=transform
+    root=config['paths']['test_dir'],
+    train=False,
+    download=True,
+    transform=transform_val_test  # only normalize for test
     )
+
 
     # Split train into train/val (e.g., 90% train, 10% val)
     val_split = config['hyperparameters'].get('val_split', 0.1)
-    n_total = len(dataset_train_full)
-    n_val = int(n_total * val_split)
+    n_total = len(dataset_train_full) #50,000
+    n_val = int(n_total * val_split) #5,000 imgs to go into valid
     n_train = n_total - n_val
-    dataset_train, dataset_val = random_split(dataset_train_full, [n_train, n_val])
+    dataset_train, dataset_val = random_split(dataset_train_full, [n_train, n_val]) #split into 2
+
+    dataset_val.dataset.transform = transform_val_test #Validation Transform
 
     dataloader_train = DataLoader(
         dataset_train,
-        batch_size=config['hyperparameters']['batch_size'],
+        batch_size=config['hyperparameters']['batch_size'], #how many images to send to the model at once
         shuffle=True,
-        num_workers=config['hyperparameters']['num_workers']
+        num_workers=config['hyperparameters']['num_workers'] #how many subprocesses to use for loading data faster.
     )
     dataloader_val = DataLoader(
         dataset_val,
@@ -68,20 +86,20 @@ def get_loaders():
     return dataloader_train, dataloader_val, dataloader_test
 
 
-def evaluate(model, dataloader, criterion, device):
-    model.eval()
+def evaluate(model, dataloader, criterion, device): # neural netwk, test or val, loss func, gpu or cpu
+    model.eval() #disable dropout
     total_loss = 0.0
     correct = 0
     total = 0
     with torch.no_grad():
-        for images, labels in dataloader:
-            images, labels = images.to(device), labels.to(device)
-            outputs = model(images)
+        for images, labels in dataloader: #loop over data
+            images, labels = images.to(device), labels.to(device) #move data to proper device
+            outputs = model(images) #get the scroe for each class
             loss = criterion(outputs, labels)
             total_loss += loss.item() * labels.size(0)
-            _, predicted = torch.max(outputs, 1)
+            _, predicted = torch.max(outputs, 1) #Finds the index (class) with the highest predicted score for each image.
             total += labels.size(0)
-            correct += (predicted == labels).sum().item()
+            correct += (predicted == labels).sum().item() #number of samples correctly classified
     avg_loss = total_loss / total
     accuracy = 100 * correct / total
     return avg_loss, accuracy
@@ -89,26 +107,26 @@ def evaluate(model, dataloader, criterion, device):
 
 def train(model, dataloader_train, dataloader_val, criterion, optimizer, device):
     model.train()
-    epochs = config['hyperparameters']['epochs']
+    epochs = config['hyperparameters']['epochs'] #run training as nb of epochs
     for epoch in range(epochs):
         running_loss = 0.0
-        with tqdm(
+        with tqdm( # display a live progress
             dataloader_train,
             desc=f"Epoch {epoch+1}/{epochs}",
             leave=True,
             unit="batch"
         ) as progress_bar:
             for i, (inputs, labels) in enumerate(progress_bar):
-                inputs, labels = inputs.to(device), labels.to(device)
-                optimizer.zero_grad()
+                inputs, labels = inputs.to(device), labels.to(device) #Loops through each batch of inputs and labels
+                optimizer.zero_grad() #Resets the gradients from the previous step.
                 outputs = model(inputs)
-                loss = criterion(outputs, labels)
-                loss.backward()
-                optimizer.step()
-                running_loss += loss.item()
+                loss = criterion(outputs, labels) #Calculates the loss between predictions and ground truth.
+                loss.backward() # computes gradients.
+                optimizer.step() #Updates model weights using the gradients.
+                running_loss += loss.item() #average loss for the current epoch.
                 avg_loss = running_loss / (i + 1)
                 progress_bar.set_postfix({'loss': avg_loss})
-        avg_train_loss = running_loss / len(dataloader_train)
+        avg_train_loss = running_loss / len(dataloader_train) #Validation After Each Epoch
         val_loss, val_acc = evaluate(model, dataloader_val, criterion, device)
         print(f"Epoch {epoch+1} finished. Train loss: {avg_train_loss:.3f} | Val loss: {val_loss:.3f} | Val acc: {val_acc:.2f}%")
     print('Finished Training')
