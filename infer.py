@@ -4,7 +4,7 @@ from torchvision import transforms
 from PIL import Image
 import sys
 
-from model import BetterNet  # Make sure this is accessible
+from model import BetterNet
 import os
 
 # CIFAR-10 classes
