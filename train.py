@@ -1,3 +1,4 @@
+import os
 import yaml
 from tqdm import tqdm
 
@@ -6,8 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
-
-import os
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from model import SimpleNet
 
@@ -15,12 +15,18 @@ from model import SimpleNet
 with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
-# Standard input normalization for CIFAR-10
 transform = transforms.Compose([
+    transforms.RandAugment(),
     transforms.ToTensor(), # Convert PIL image to PyTorch Tensor and normalize to [0, 1]
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # Mean and Standard Deviation of the CIFAR-10 dataset
+     transforms.Normalize( (0.49139968, 0.48215827, 0.44653124), (0.24703233, 0.24348505, 0.26158768) )# Mean and Standard Deviation of the CIFAR-10 dataset
 ])
-
+test_transform = transforms.Compose([
+    transforms.ToTensor(), # Convert PIL image to PyTorch Tensor and normalize to [0, 1]
+     transforms.Normalize(
+        (0.49139968, 0.48215827, 0.44653124),
+        (0.24703233, 0.24348505, 0.26158768)
+    )# Mean and Standard Deviation of the CIFAR-10 dataset
+])
 def get_loaders():
     # Ensure train and test data directories exist
     os.makedirs(config['paths']['train_dir'], exist_ok=True)
@@ -37,7 +43,7 @@ def get_loaders():
         root=config['paths']['test_dir'],
         train=False,
         download=True,
-        transform=transform
+        transform=test_transform
     )
 
     # Split train into train/val (e.g., 90% train, 10% val)
@@ -87,7 +93,11 @@ def evaluate(model, dataloader, criterion, device):
     return avg_loss, accuracy
 
 
-def train(model, dataloader_train, dataloader_val, criterion, optimizer, device):
+def train(model, dataloader_train, dataloader_val, criterion, optimizer,scheduler, device):
+    best_val_loss = float('inf')
+    patience = config['hyperparameters']['early_stopping_patience']
+    delta = config['hyperparameters']['delta']
+    counter = 0
     model.train()
     epochs = config['hyperparameters']['epochs']
     for epoch in range(epochs):
@@ -111,6 +121,16 @@ def train(model, dataloader_train, dataloader_val, criterion, optimizer, device)
         avg_train_loss = running_loss / len(dataloader_train)
         val_loss, val_acc = evaluate(model, dataloader_val, criterion, device)
         print(f"Epoch {epoch+1} finished. Train loss: {avg_train_loss:.3f} | Val loss: {val_loss:.3f} | Val acc: {val_acc:.2f}%")
+        scheduler.step()
+        if (val_loss < best_val_loss - delta) or (epoch < 10):
+            best_val_loss = val_loss
+            counter = 0
+        else:
+            counter += 1
+            if counter >= patience:
+                print('Early stopping triggered.')
+                break
+
     print('Finished Training')
 
 
@@ -128,8 +148,6 @@ def test(model, dataloader_test, device):
             correct += (predicted == labels).sum().item()  # Update correct count
     # Print accuracy as a percentage
     print(f'Accuracy of the network on the 10000 test images: {100 * correct / total:.2f} %')
-
-
 def main():
     # Select device: use GPU if available, otherwise use CPU
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -142,16 +160,17 @@ def main():
     model = SimpleNet().to(device)
 
     # Define the loss function (cross-entropy for classification)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
     # Define the optimizer (SGD with learning rate and momentum from config)
     optimizer = optim.SGD(
         model.parameters(),
         lr=config['hyperparameters']['lr'],
-        momentum=config['hyperparameters']['momentum']
+        momentum=config['hyperparameters']['momentum'],
+        weight_decay=config['hyperparameters']['weight_decay']
     )
-
-    train(model, dataloader_train, dataloader_val, criterion, optimizer, device)
+    scheduler = CosineAnnealingLR(optimizer, T_max=config['hyperparameters']['epochs'])
+    train(model, dataloader_train, dataloader_val, criterion, optimizer,scheduler, device)
     test_loss, test_acc = evaluate(model, dataloader_test, criterion, device)
     print(f'Test loss: {test_loss:.3f} | Test acc: {test_acc:.2f}%')
 
