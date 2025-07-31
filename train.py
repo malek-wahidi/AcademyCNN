@@ -18,8 +18,8 @@ with open('config.yaml', 'r') as f:
 transform_train = transforms.Compose([
     transforms.RandomHorizontalFlip(),    
     transforms.RandomCrop(32, padding=4),         
-    transforms.ToTensor(), # Convert PIL image to PyTorch Tensor and normalize to [0, 1]
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # Mean and Standard Deviation of the CIFAR-10 dataset
+    transforms.ToTensor(), #
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) 
 ])
 
 transform_test = transforms.Compose([

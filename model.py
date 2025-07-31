@@ -24,7 +24,7 @@ class ImprovedNet(nn.Module):
             nn.MaxPool2d(2)
         )
 
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(0.6)
         self.fc1 = nn.Linear(128 * 4 * 4, 256)
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, 10)
