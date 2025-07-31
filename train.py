@@ -6,6 +6,8 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
+from torch.optim.lr_scheduler import StepLR
+import matplotlib.pyplot as plt
 
 import os
 
@@ -16,9 +18,23 @@ with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
 # Standard input normalization for CIFAR-10
-transform = transforms.Compose([
-    transforms.ToTensor(), # Convert PIL image to PyTorch Tensor and normalize to [0, 1]
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # Mean and Standard Deviation of the CIFAR-10 dataset
+mean = (0.4914, 0.4822, 0.4465)
+std = (0.2023, 0.1994, 0.2010)
+
+# These transformations augment images
+train_transform = transforms.Compose([
+    transforms.RandomHorizontalFlip(),
+    transforms.RandomCrop(32, padding=4),
+    transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+    transforms.RandomRotation(10),
+    transforms.ToTensor(),
+    transforms.Normalize(mean, std)
+])
+
+# These don't (validation/testing)
+test_transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize(mean, std),
 ])
 
 def get_loaders():
@@ -31,13 +47,13 @@ def get_loaders():
         root=config['paths']['train_dir'],
         train=True,
         download=True,
-        transform=transform
+        transform=train_transform
     )
     dataset_test = datasets.CIFAR10(
         root=config['paths']['test_dir'],
         train=False,
         download=True,
-        transform=transform
+        transform=test_transform
     )
 
     # Split train into train/val (e.g., 90% train, 10% val)
@@ -86,8 +102,11 @@ def evaluate(model, dataloader, criterion, device):
     accuracy = 100 * correct / total
     return avg_loss, accuracy
 
+train_losses = []
+val_losses = []
+val_accuracies = []
 
-def train(model, dataloader_train, dataloader_val, criterion, optimizer, device):
+def train(model, dataloader_train, dataloader_val, criterion, optimizer, scheduler, device):
     model.train()
     epochs = config['hyperparameters']['epochs']
     for epoch in range(epochs):
@@ -110,7 +129,11 @@ def train(model, dataloader_train, dataloader_val, criterion, optimizer, device)
                 progress_bar.set_postfix({'loss': avg_loss})
         avg_train_loss = running_loss / len(dataloader_train)
         val_loss, val_acc = evaluate(model, dataloader_val, criterion, device)
+        train_losses.append(avg_train_loss)
+        val_losses.append(val_loss)
+        val_accuracies.append(val_acc)
         print(f"Epoch {epoch+1} finished. Train loss: {avg_train_loss:.3f} | Val loss: {val_loss:.3f} | Val acc: {val_acc:.2f}%")
+        scheduler.step()
     print('Finished Training')
 
 
@@ -141,17 +164,12 @@ def main():
     # Create the neural network and move it to the selected device
     model = SimpleNet().to(device)
 
-    # Define the loss function (cross-entropy for classification)
     criterion = nn.CrossEntropyLoss()
 
-    # Define the optimizer (SGD with learning rate and momentum from config)
-    optimizer = optim.SGD(
-        model.parameters(),
-        lr=config['hyperparameters']['lr'],
-        momentum=config['hyperparameters']['momentum']
-    )
+    optimizer = torch.optim.Adam(model.parameters(), lr=config['hyperparameters']['lr'], weight_decay=1e-4)
+    scheduler = StepLR(optimizer, step_size=60, gamma=0.5)
 
-    train(model, dataloader_train, dataloader_val, criterion, optimizer, device)
+    train(model, dataloader_train, dataloader_val, criterion, optimizer, scheduler, device)
     test_loss, test_acc = evaluate(model, dataloader_test, criterion, device)
     print(f'Test loss: {test_loss:.3f} | Test acc: {test_acc:.2f}%')
 
@@ -159,6 +177,28 @@ def main():
     os.makedirs(os.path.dirname(config['paths']['model_path']), exist_ok=True)  # Create weights dir if missing
     torch.save(model.state_dict(), config['paths']['model_path']) # Save the model's parameters to a pth file
     print(f"Model saved to {config['paths']['model_path']}")
+
+    epochs_range = range(1, config['hyperparameters']['epochs'] + 1)
+
+    plt.figure(figsize=(10, 4))
+    plt.subplot(1, 2, 1)
+    plt.plot(epochs_range, train_losses, label="Train Loss")
+    plt.plot(epochs_range, val_losses, label="Val Loss")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.title("Loss Over Epochs")
+    plt.legend()
+
+    plt.subplot(1, 2, 2)
+    plt.plot(epochs_range, val_accuracies, label="Val Accuracy", color='green')
+    plt.xlabel("Epoch")
+    plt.ylabel("Accuracy (%)")
+    plt.title("Validation Accuracy Over Epochs")
+    plt.legend()
+
+    plt.tight_layout()
+    plt.savefig("training_metrics.png")
+    plt.show()
 
 if __name__ == '__main__':
     main()
