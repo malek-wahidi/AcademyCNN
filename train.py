@@ -11,14 +11,25 @@ import os
 
 from model import SimpleNet
 
+
 # Load config (YAML for easy editing)
 with open('config.yaml', 'r') as f:
     config = yaml.safe_load(f)
 
-# Standard input normalization for CIFAR-10
-transform = transforms.Compose([
-    transforms.ToTensor(), # Convert PIL image to PyTorch Tensor and normalize to [0, 1]
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)) # Mean and Standard Deviation of the CIFAR-10 dataset
+# for training
+transform_train = transforms.Compose([
+    transforms.RandAugment(num_ops=2, magnitude=9),
+    transforms.RandomCrop(32, padding=4),
+    transforms.RandomHorizontalFlip(),
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    transforms.RandomErasing(p=0.5, scale=(0.02, 0.2), ratio=(0.3, 3.3), value=0)
+])
+
+# for testing
+transform_test = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 ])
 
 def get_loaders():
@@ -31,13 +42,13 @@ def get_loaders():
         root=config['paths']['train_dir'],
         train=True,
         download=True,
-        transform=transform
+        transform=transform_train
     )
     dataset_test = datasets.CIFAR10(
         root=config['paths']['test_dir'],
         train=False,
         download=True,
-        transform=transform
+        transform=transform_test
     )
 
     # Split train into train/val (e.g., 90% train, 10% val)
@@ -88,9 +99,18 @@ def evaluate(model, dataloader, criterion, device):
 
 
 def train(model, dataloader_train, dataloader_val, criterion, optimizer, device):
-    model.train()
+
+    scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer,
+        max_lr=config['hyperparameters']['lr'],
+        steps_per_epoch=len(dataloader_train),
+        epochs=config['hyperparameters']['epochs']
+    )
+
+
     epochs = config['hyperparameters']['epochs']
     for epoch in range(epochs):
+        model.train()
         running_loss = 0.0
         with tqdm(
             dataloader_train,
@@ -105,6 +125,7 @@ def train(model, dataloader_train, dataloader_val, criterion, optimizer, device)
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
+                scheduler.step()
                 running_loss += loss.item()
                 avg_loss = running_loss / (i + 1)
                 progress_bar.set_postfix({'loss': avg_loss})
@@ -139,17 +160,18 @@ def main():
     dataloader_train, dataloader_val, dataloader_test = get_loaders()
 
     # Create the neural network and move it to the selected device
-    model = SimpleNet().to(device)
+    model = SimpleNet().to(device) # Use the new model
 
     # Define the loss function (cross-entropy for classification)
     criterion = nn.CrossEntropyLoss()
 
-    # Define the optimizer (SGD with learning rate and momentum from config)
-    optimizer = optim.SGD(
-        model.parameters(),
-        lr=config['hyperparameters']['lr'],
-        momentum=config['hyperparameters']['momentum']
+    # Define the optimizer
+    optimizer = optim.Adam(
+    model.parameters(),
+    lr=config['hyperparameters']['lr'],
+    weight_decay=config['hyperparameters']['weight_decay']
     )
+
 
     train(model, dataloader_train, dataloader_val, criterion, optimizer, device)
     test_loss, test_acc = evaluate(model, dataloader_test, criterion, device)
