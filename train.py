@@ -150,11 +150,11 @@ def main():
     # Define the loss function (cross-entropy for classification)
     criterion = nn.CrossEntropyLoss()
 
-    # Define the optimizer (SGD with learning rate and momentum from config)
-    optimizer = optim.SGD(
+     #Define the optimizer (SGD with learning rate and momentum from config)
+    optimizer = optim.AdamW(
         model.parameters(),
         lr=config['hyperparameters']['lr'],
-        momentum=config['hyperparameters']['momentum']
+        weight_decay=config['hyperparameters'].get('weight_decay', 0.0)
     )
 
     train(model, dataloader_train, dataloader_val, criterion, optimizer, device)
