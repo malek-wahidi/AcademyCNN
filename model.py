@@ -25,7 +25,7 @@ class ImprovedNet(nn.Module):
         )
 
         self.dropout = nn.Dropout(0.5)
-        self.fc1 = nn.Linear(128 * 8 * 8, 256)
+        self.fc1 = nn.Linear(128 * 4 * 4, 256)
         self.fc2 = nn.Linear(256, 128)
         self.fc3 = nn.Linear(128, 10)
 
