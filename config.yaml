@@ -1,9 +1,8 @@
 hyperparameters:
-  epochs: 10
-  batch_size: 8
+  epochs: 100
+  batch_size: 32
 
   lr: 0.001
-  momentum: 0.9 
 
   num_workers: 8
 
