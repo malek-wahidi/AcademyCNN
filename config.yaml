@@ -1,5 +1,5 @@
 hyperparameters:
-  epochs: 30
+  epochs: 60
   batch_size: 512
   lr: 0.008
   weight_decay: 0.0001
